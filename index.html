@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>EmuVR Label Generator | Gemini AI</title>
+    <link rel="stylesheet" href="style.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
+</head>
+<body>
+
+    <div class="container">
+        <header>
+            <h1>📼 EmuVR Retro Pack Maker</h1>
+            <p>Transforme títulos em pacotes de VHS prontos para o EmuVR</p>
+        </header>
+
+        <main>
+            <section class="config-section">
+                <div class="input-group">
+                    <label for="apiKey">Gemini API Key:</label>
+                    <input type="password" id="apiKey" placeholder="Cole sua chave da Google AI Studio aqui..." required>
+                </div>
+            </section>
+
+            <hr>
+
+            <section class="form-section">
+                <div class="input-group">
+                    <label for="movieTitle">Título do Filme / Gravação:</label>
+                    <input type="text" id="movieTitle" placeholder="Ex: Batman 1989 ou Gravação de Natal 92">
+                </div>
+
+                <div class="input-group">
+                    <label for="vhsStyle">Tipo de Conteúdo:</label>
+                    <select id="vhsStyle">
+                        <option value="blockbuster">Filme Famoso (Labels Oficiais)</option>
+                        <option value="homevideo">Gravação Caseira (Etiqueta Escrita à Mão)</option>
+                        <option value="tv">Gravado da TV (Comerciais inclusos)</option>
+                    </select>
+                </div>
+
+                <div class="input-group">
+                    <label for="videoFile">Selecione o arquivo de Vídeo (Opcional):</label>
+                    <input type="file" id="videoFile" accept="video/mp4,video/x-m4v,video/*">
+                    <small>A IA analisará um frame deste vídeo para gerar a descrição.</small>
+                </div>
+
+                <video id="videoHelper" style="display:none;"></video>
+
+                <button id="generateBtn" class="btn-primary">✨ Consultar Gemini & Gerar Label</button>
+            </section>
+
+            <section class="preview-section">
+                <div class="canvas-container">
+                    <canvas id="vhsCanvas" width="800" height="350"></canvas>
+                    <p class="canvas-label">Preview da Etiqueta (Gerada via Canvas 2D)</p>
+                </div>
+                
+                <div id="aiStatus" class="ai-box">
+                    <strong>Status:</strong> Aguardando comando...
+                </div>
+
+                <button id="downloadZipBtn" class="btn-secondary" disabled>📦 Baixar Pack para EmuVR (.zip)</button>
+            </section>
+        </main>
+    </div>
+
+    <script type="module" src="script.js"></script>
+</body>
+</html>
