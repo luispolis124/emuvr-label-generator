@@ -7,6 +7,7 @@ const aiStatus = document.getElementById('aiStatus');
 
 let metadataResult = null;
 
+// Captura frame do vídeo
 async function captureVideoFrame(file) {
     return new Promise((resolve, reject) => {
         const url = URL.createObjectURL(file);
@@ -21,9 +22,9 @@ async function captureVideoFrame(file) {
                 tempCtx.drawImage(videoHelper, 0, 0);
                 const base64 = tempCanvas.toDataURL('image/jpeg', 0.7).split(',')[1];
                 resolve(base64);
-            } catch (e) { reject("Erro ao processar frame."); }
+            } catch (e) { reject("Erro no frame."); }
         };
-        videoHelper.onerror = () => reject("Vídeo incompatível.");
+        videoHelper.onerror = () => reject("Vídeo inválido.");
     });
 }
 
@@ -56,20 +57,21 @@ generateBtn.addEventListener('click', async () => {
     if (!apiKey) return alert("Insira a API Key!");
     if (!title) return alert("Defina um título!");
 
-    aiStatus.innerHTML = "⏳ Validando conexão com Google AI...";
+    aiStatus.innerHTML = "⏳ Conectando ao Gemini (v1 estável)...";
 
     try {
-        let parts = [{ text: `Atue como historiador. Título: "${title}". Gere um JSON para VHS de animação 2D Cel original: {"cleanTitle": "", "year": "", "distributor": "", "description": "", "videoPrompt": ""}. Responda apenas o JSON puro.` }];
+        let parts = [{ text: `Atue como historiador de animação. Título: "${title}". Gere um JSON para VHS: {"cleanTitle": "", "year": "", "distributor": "", "description": "", "videoPrompt": ""}. Responda apenas o JSON.` }];
 
         if (videoFile) {
-            aiStatus.innerHTML = "⏳ Analisando frame do vídeo...";
+            aiStatus.innerHTML = "⏳ Processando imagem do vídeo...";
             try {
                 const frame = await captureVideoFrame(videoFile);
                 parts.push({ inline_data: { mime_type: "image/jpeg", data: frame } });
-            } catch (vErr) { console.warn("Frame ignorado."); }
+            } catch (vErr) { console.warn("Sem frame."); }
         }
 
-        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`, {
+        // URL ATUALIZADA PARA V1 (MAIS ESTÁVEL)
+        const response = await fetch(`https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=${apiKey}`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ contents: [{ parts }] })
@@ -77,23 +79,22 @@ generateBtn.addEventListener('click', async () => {
 
         const resData = await response.json();
 
-        // TRATAMENTO DE ERRO DE CHAVE INVÁLIDA
         if (resData.error) {
-            throw new Error(`Google diz: ${resData.error.message} (Código: ${resData.error.status})`);
+            throw new Error(`Erro API: ${resData.error.message}`);
         }
 
         let rawText = resData.candidates[0].content.parts[0].text;
         
-        // Limpeza de Markdown (remove ```json e ```)
+        // Limpa blocos de código markdown se existirem
         rawText = rawText.replace(/```json/g, "").replace(/```/g, "").trim();
         
         const jsonMatch = rawText.match(/\{.*\}/s);
-        if (!jsonMatch) throw new Error("A IA não retornou um formato de dados válido.");
+        if (!jsonMatch) throw new Error("A IA não retornou um JSON válido.");
         
         metadataResult = JSON.parse(jsonMatch[0]);
         renderLabel(metadataResult);
         
-        aiStatus.innerHTML = `✅ <strong>Pronto!</strong><br>Prompt para Kling AI:<br><code style="background:#000; color:#ffcc00; display:block; padding:10px; margin-top:5px; border:1px solid #333;">${metadataResult.videoPrompt}</code>`;
+        aiStatus.innerHTML = `✅ <strong>Sucesso!</strong><br>Prompt Kling AI:<br><code style="background:#000; color:#ffcc00; display:block; padding:10px; margin-top:5px; border:1px solid #333;">${metadataResult.videoPrompt}</code>`;
         downloadBtn.disabled = false;
 
     } catch (err) {
