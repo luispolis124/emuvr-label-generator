@@ -33,19 +33,28 @@ function renderLabel(data) {
     ctx.strokeStyle = "#000";
     ctx.lineWidth = 5;
     ctx.strokeRect(10, 10, canvas.width - 20, canvas.height - 20);
-    
     ctx.fillStyle = "#000";
     ctx.font = "bold 40px Arial";
     const title = data.cleanTitle ? data.cleanTitle.toUpperCase() : "SEM TÍTULO";
     ctx.fillText(title, 40, 80);
-    
     ctx.font = "18px monospace";
     ctx.fillText(`ANO: ${data.year || "19XX"} | ESTÚDIO: ${data.distributor || "RETRÔ"}`, 40, 130);
-    
     for(let i=0; i<60; i++) {
         ctx.fillStyle = `rgba(0,0,0,${Math.random() * 0.1})`;
         ctx.fillRect(Math.random() * canvas.width, Math.random() * canvas.height, 2, 1);
     }
+}
+
+// Função para processar o JSON da IA de forma limpa
+function handleAIResponse(resData) {
+    let rawText = resData.candidates[0].content.parts[0].text;
+    rawText = rawText.replace(/```json/g, "").replace(/```/g, "").trim();
+    const jsonMatch = rawText.match(/\{.*\}/s);
+    if (!jsonMatch) throw new Error("JSON não encontrado.");
+    metadataResult = JSON.parse(jsonMatch[0]);
+    renderLabel(metadataResult);
+    aiStatus.innerHTML = `✅ <strong>Sucesso!</strong><br>Prompt Kling AI:<br><code style="background:#000; color:#ffcc00; display:block; padding:10px; margin-top:5px; border:1px solid #333;">${metadataResult.videoPrompt}</code>`;
+    downloadBtn.disabled = false;
 }
 
 generateBtn.addEventListener('click', async () => {
@@ -56,47 +65,41 @@ generateBtn.addEventListener('click', async () => {
     if (!apiKey) return alert("Insira a API Key!");
     if (!title) return alert("Defina um título!");
 
-    aiStatus.innerHTML = "⏳ Tentando conexão estável (v1/latest)...";
+    aiStatus.innerHTML = "⏳ Tentando conexão (Flash)...";
 
     try {
         let parts = [{ text: `Título: "${title}". Gere um JSON para VHS: {"cleanTitle": "", "year": "", "distributor": "", "description": "", "videoPrompt": ""}. Responda apenas o JSON.` }];
 
         if (videoFile) {
-            aiStatus.innerHTML = "⏳ Analisando vídeo...";
+            aiStatus.innerHTML = "⏳ Processando vídeo...";
             try {
                 const frame = await captureVideoFrame(videoFile);
                 parts.push({ inline_data: { mime_type: "image/jpeg", data: frame } });
             } catch (vErr) { console.warn("Pulando frame."); }
         }
 
-        // URL ATUALIZADA PARA v1 COM MODELO LATEST
-        const url = `https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash-latest:generateContent?key=${apiKey}`;
-        
-        const response = await fetch(url, {
+        // TENTATIVA 1: GEMINI 1.5 FLASH (v1beta)
+        let response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ 
-                contents: [{ parts: parts }] 
-            })
+            body: JSON.stringify({ contents: [{ parts }] })
         });
 
-        const resData = await response.json();
+        let resData = await response.json();
 
+        // TENTATIVA 2: Se falhar, tenta o GEMINI 1.5 PRO
         if (resData.error) {
-            throw new Error(`Google diz: ${resData.error.message} (${resData.error.status})`);
+            aiStatus.innerHTML = "⏳ Flash falhou. Tentando Gemini Pro...";
+            response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro:generateContent?key=${apiKey}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ contents: [{ parts }] })
+            });
+            resData = await response.json();
         }
 
-        let rawText = resData.candidates[0].content.parts[0].text;
-        rawText = rawText.replace(/```json/g, "").replace(/```/g, "").trim();
-        
-        const jsonMatch = rawText.match(/\{.*\}/s);
-        if (!jsonMatch) throw new Error("Falha ao ler dados da IA.");
-        
-        metadataResult = JSON.parse(jsonMatch[0]);
-        renderLabel(metadataResult);
-        
-        aiStatus.innerHTML = `✅ <strong>Sucesso!</strong><br>Copie o prompt para o Kling AI:<br><code style="background:#000; color:#ffcc00; display:block; padding:10px; margin-top:5px; border:1px solid #333;">${metadataResult.videoPrompt}</code>`;
-        downloadBtn.disabled = false;
+        if (resData.error) throw new Error(resData.error.message);
+        handleAIResponse(resData);
 
     } catch (err) {
         aiStatus.innerHTML = `<div style="color:#ff5555">❌ ${err.message}</div>`;
@@ -109,13 +112,10 @@ downloadBtn.addEventListener('click', async () => {
     const zip = new JSZip();
     const name = metadataResult.cleanTitle.replace(/\s+/g, '_');
     const folder = zip.folder(name);
-    
     folder.file("label.png", canvas.toDataURL('image/png').split(',')[1], {base64: true});
     folder.file("info.json", JSON.stringify(metadataResult, null, 2));
-    
     const videoFile = document.getElementById('videoFile').files[0];
     if (videoFile) folder.file(`${name}.mp4`, videoFile);
-    
     const content = await zip.generateAsync({type:"blob"});
     saveAs(content, `${name}_Pack.zip`);
 });
