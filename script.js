@@ -7,75 +7,66 @@ const aiStatus = document.getElementById('aiStatus');
 
 let metadataResult = null;
 
-// Função para extrair frame do vídeo para análise multimodal
 async function captureVideoFrame(file) {
-    return new Promise((resolve) => {
+    return new Promise((resolve, reject) => {
         const url = URL.createObjectURL(file);
         videoHelper.src = url;
         videoHelper.onloadeddata = () => { videoHelper.currentTime = 1; };
         videoHelper.onseeked = () => {
-            const tempCanvas = document.createElement('canvas');
-            tempCanvas.width = videoHelper.videoWidth;
-            tempCanvas.height = videoHelper.videoHeight;
-            const tempCtx = tempCanvas.getContext('2d');
-            tempCtx.drawImage(videoHelper, 0, 0);
-            const base64 = tempCanvas.toDataURL('image/jpeg', 0.7).split(',')[1];
-            resolve(base64);
+            try {
+                const tempCanvas = document.createElement('canvas');
+                tempCanvas.width = videoHelper.videoWidth;
+                tempCanvas.height = videoHelper.videoHeight;
+                const tempCtx = tempCanvas.getContext('2d');
+                tempCtx.drawImage(videoHelper, 0, 0);
+                const base64 = tempCanvas.toDataURL('image/jpeg', 0.7).split(',')[1];
+                resolve(base64);
+            } catch (e) { reject("Erro ao processar frame."); }
         };
+        videoHelper.onerror = () => reject("Vídeo incompatível.");
     });
 }
 
-// Renderiza a etiqueta com estilo de desgaste e metadados
 function renderLabel(data) {
-    const style = document.getElementById('vhsStyle').value;
-    
-    // Fundo da etiqueta
     ctx.fillStyle = "#ffffff";
     ctx.fillRect(0, 0, canvas.width, canvas.height);
-    
-    // Borda preta clássica
     ctx.strokeStyle = "#000";
     ctx.lineWidth = 5;
     ctx.strokeRect(10, 10, canvas.width - 20, canvas.height - 20);
-
-    // Título (com variação de fonte se for caseiro)
-    ctx.fillStyle = "#000";
-    ctx.font = style === 'homevideo' ? "italic bold 40px 'Comic Sans MS'" : "bold 45px Arial";
-    ctx.fillText(data.cleanTitle.toUpperCase(), 40, 80);
-
-    // Detalhes técnicos
-    ctx.font = "18px monospace";
-    ctx.fillText(`ANO: ${data.year} | ESTÚDIO: ${data.distributor}`, 40, 130);
-    ctx.fillText(`ESTILO: Animação 2D Cel (Original Master)`, 40, 160);
     
-    // Simulação de desgaste físico da etiqueta (Ruído)
-    for(let i=0; i<85; i++) {
-        ctx.fillStyle = `rgba(0,0,0,${Math.random() * 0.15})`;
-        ctx.fillRect(Math.random() * canvas.width, Math.random() * canvas.height, 2, 1);
+    ctx.fillStyle = "#000";
+    ctx.font = "bold 40px Arial";
+    const title = data.cleanTitle ? data.cleanTitle.toUpperCase() : "SEM TÍTULO";
+    ctx.fillText(title, 40, 80);
+    
+    ctx.font = "18px monospace";
+    ctx.fillText(`ANO: ${data.year || "19XX"} | ESTÚDIO: ${data.distributor || "RETRÔ"}`, 40, 130);
+    
+    for(let i=0; i<60; i++) {
+        ctx.fillStyle = `rgba(0,0,0,${Math.random() * 0.1})`;
+        ctx.fillRect(Math.random()*canvas.width, Math.random()*canvas.height, 2, 1);
     }
 }
 
 generateBtn.addEventListener('click', async () => {
-    const apiKey = document.getElementById('apiKey').value;
+    const apiKey = document.getElementById('apiKey').value.trim();
     const title = document.getElementById('movieTitle').value;
     const videoFile = document.getElementById('videoFile').files[0];
 
-    if (!apiKey) return alert("Por favor, insira sua Gemini API Key!");
+    if (!apiKey) return alert("Insira a API Key!");
+    if (!title) return alert("Defina um título!");
 
-    aiStatus.innerHTML = "⏳ Gemini está concebendo sua animação e preparando o prompt do Kling...";
-    
+    aiStatus.innerHTML = "⏳ Validando conexão com Google AI...";
+
     try {
-        // Prompt robusto que solicita dados e o comando de vídeo
-        let promptBase = `O título é "${title}". Atue como um historiador de animações perdidas.
-        1. Crie metadados fictícios (cleanTitle, year, distributor, description) para uma animação 2D Cel dos anos 80/90.
-        2. Crie um PROMPT em INGLÊS para o Kling AI gerar um vídeo dessa animação com estética VHS, 2D cel style, hand-drawn.
-        Retorne APENAS o JSON: {"cleanTitle": "", "year": "", "distributor": "", "description": "", "videoPrompt": ""}`;
-
-        let parts = [{ text: promptBase }];
+        let parts = [{ text: `Atue como historiador. Título: "${title}". Gere um JSON para VHS de animação 2D Cel original: {"cleanTitle": "", "year": "", "distributor": "", "description": "", "videoPrompt": ""}. Responda apenas o JSON puro.` }];
 
         if (videoFile) {
-            const frameBase64 = await captureVideoFrame(videoFile);
-            parts.push({ inline_data: { mime_type: "image/jpeg", data: frameBase64 } });
+            aiStatus.innerHTML = "⏳ Analisando frame do vídeo...";
+            try {
+                const frame = await captureVideoFrame(videoFile);
+                parts.push({ inline_data: { mime_type: "image/jpeg", data: frame } });
+            } catch (vErr) { console.warn("Frame ignorado."); }
         }
 
         const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`, {
@@ -85,58 +76,44 @@ generateBtn.addEventListener('click', async () => {
         });
 
         const resData = await response.json();
-        const rawText = resData.candidates[0].content.parts[0].text;
-        
-        // Extração e parse do JSON da resposta
-        metadataResult = JSON.parse(rawText.match(/\{.*\}/s)[0]);
 
-        // Atualiza a Label e a Interface
+        // TRATAMENTO DE ERRO DE CHAVE INVÁLIDA
+        if (resData.error) {
+            throw new Error(`Google diz: ${resData.error.message} (Código: ${resData.error.status})`);
+        }
+
+        let rawText = resData.candidates[0].content.parts[0].text;
+        
+        // Limpeza de Markdown (remove ```json e ```)
+        rawText = rawText.replace(/```json/g, "").replace(/```/g, "").trim();
+        
+        const jsonMatch = rawText.match(/\{.*\}/s);
+        if (!jsonMatch) throw new Error("A IA não retornou um formato de dados válido.");
+        
+        metadataResult = JSON.parse(jsonMatch[0]);
         renderLabel(metadataResult);
         
-        aiStatus.innerHTML = `
-            <p>✅ <strong>Pack Planejado!</strong></p>
-            <div style="background:#000; padding:12px; border:1px solid #00f2ff; margin-top:10px; border-radius:4px;">
-                <p style="color:#00f2ff; margin:0 0 8px 0; font-size:12px;">🚀 COPIE PARA O KLING AI:</p>
-                <code style="color:#fff; word-break:break-all; font-size:13px;">${metadataResult.videoPrompt}</code>
-            </div>
-            <p style="margin-top:10px;"><small>Após gerar o vídeo, selecione-o no campo de arquivo e baixe seu Pack ZIP.</small></p>
-        `;
-        
+        aiStatus.innerHTML = `✅ <strong>Pronto!</strong><br>Prompt para Kling AI:<br><code style="background:#000; color:#ffcc00; display:block; padding:10px; margin-top:5px; border:1px solid #333;">${metadataResult.videoPrompt}</code>`;
         downloadBtn.disabled = false;
 
     } catch (err) {
-        aiStatus.innerText = "❌ Erro na conexão. Verifique a chave ou o título.";
-        console.error(err);
+        aiStatus.innerHTML = `<div style="color:#ff5555">❌ ${err.message}</div>`;
+        console.error("Debug:", err);
     }
 });
 
 downloadBtn.addEventListener('click', async () => {
-    if(!metadataResult) return;
-
+    if (!metadataResult) return;
     const zip = new JSZip();
-    const folderName = metadataResult.cleanTitle.replace(/\s+/g, '_');
-    const folder = zip.folder(folderName);
-
-    // Salva a imagem da label
-    const labelData = canvas.toDataURL('image/png').split(',')[1];
-    folder.file("label.png", labelData, {base64: true});
-
-    // Salva os metadados para o EmuVR
-    const emuInfo = {
-        Title: metadataResult.cleanTitle,
-        Year: metadataResult.year,
-        Description: metadataResult.description + " [Estilo: Animação 2D Cel Gerada por IA]",
-        Media: "VHS"
-    };
-    folder.file("info.json", JSON.stringify(emuInfo, null, 2));
-
-    // Inclui o vídeo no pacote se o usuário tiver anexado
+    const name = metadataResult.cleanTitle.replace(/\s+/g, '_');
+    const folder = zip.folder(name);
+    
+    folder.file("label.png", canvas.toDataURL('image/png').split(',')[1], {base64: true});
+    folder.file("info.json", JSON.stringify(metadataResult, null, 2));
+    
     const videoFile = document.getElementById('videoFile').files[0];
-    if (videoFile) {
-        folder.file(`${folderName}.mp4`, videoFile);
-    }
-
-    // Gera e baixa o ZIP
-    const content = await zip.generateAsync({type: "blob"});
-    saveAs(content, `${folderName}_EmuVR_Pack.zip`);
+    if (videoFile) folder.file(`${name}.mp4`, videoFile);
+    
+    const content = await zip.generateAsync({type:"blob"});
+    saveAs(content, `${name}_Pack.zip`);
 });
