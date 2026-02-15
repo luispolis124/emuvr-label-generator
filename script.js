@@ -43,10 +43,10 @@ function renderLabel(data) {
     ctx.font = "18px monospace";
     ctx.fillText(`ANO: ${data.year || "19XX"} | ESTÚDIO: ${data.distributor || "RETRÔ"}`, 40, 130);
     
-    // Efeito visual de desgaste
+    // Efeito visual de desgaste da etiqueta
     for(let i=0; i<60; i++) {
         ctx.fillStyle = `rgba(0,0,0,${Math.random() * 0.1})`;
-        ctx.fillRect(Math.random()*canvas.width, Math.random()*canvas.height, 2, 1);
+        ctx.fillRect(Math.random() * canvas.width, Math.random() * canvas.height, 2, 1);
     }
 }
 
@@ -71,7 +71,7 @@ generateBtn.addEventListener('click', async () => {
             } catch (vErr) { console.warn("Prosseguindo sem imagem."); }
         }
 
-        // MUDANÇA CRUCIAL: v1beta -> v1
+        // MUDANÇA CRUCIAL: v1beta -> v1 para evitar o erro NOT_FOUND
         const response = await fetch(`https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=${apiKey}`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -81,12 +81,12 @@ generateBtn.addEventListener('click', async () => {
         const resData = await response.json();
 
         if (resData.error) {
-            throw new Error(`Google diz: ${resData.error.message} (${resData.error.status})`);
+            throw new Error(`Google diz: ${resData.error.message}`);
         }
 
         let rawText = resData.candidates[0].content.parts[0].text;
         
-        // Limpeza de blocos de código markdown
+        // Limpeza de blocos de código markdown que o Gemini às vezes envia
         rawText = rawText.replace(/```json/g, "").replace(/```/g, "").trim();
         
         const jsonMatch = rawText.match(/\{.*\}/s);
