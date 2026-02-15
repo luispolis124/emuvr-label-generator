@@ -7,7 +7,7 @@ const aiStatus = document.getElementById('aiStatus');
 
 let metadataResult = null;
 
-// Captura frame do vídeo
+// Função para extrair frame do vídeo
 async function captureVideoFrame(file) {
     return new Promise((resolve, reject) => {
         const url = URL.createObjectURL(file);
@@ -22,9 +22,9 @@ async function captureVideoFrame(file) {
                 tempCtx.drawImage(videoHelper, 0, 0);
                 const base64 = tempCanvas.toDataURL('image/jpeg', 0.7).split(',')[1];
                 resolve(base64);
-            } catch (e) { reject("Erro no frame."); }
+            } catch (e) { reject("Erro ao processar frame."); }
         };
-        videoHelper.onerror = () => reject("Vídeo inválido.");
+        videoHelper.onerror = () => reject("Vídeo incompatível.");
     });
 }
 
@@ -43,6 +43,7 @@ function renderLabel(data) {
     ctx.font = "18px monospace";
     ctx.fillText(`ANO: ${data.year || "19XX"} | ESTÚDIO: ${data.distributor || "RETRÔ"}`, 40, 130);
     
+    // Efeito visual de desgaste
     for(let i=0; i<60; i++) {
         ctx.fillStyle = `rgba(0,0,0,${Math.random() * 0.1})`;
         ctx.fillRect(Math.random()*canvas.width, Math.random()*canvas.height, 2, 1);
@@ -57,20 +58,20 @@ generateBtn.addEventListener('click', async () => {
     if (!apiKey) return alert("Insira a API Key!");
     if (!title) return alert("Defina um título!");
 
-    aiStatus.innerHTML = "⏳ Conectando ao Gemini (v1 estável)...";
+    aiStatus.innerHTML = "⏳ Conectando via API v1 (Stable)...";
 
     try {
-        let parts = [{ text: `Atue como historiador de animação. Título: "${title}". Gere um JSON para VHS: {"cleanTitle": "", "year": "", "distributor": "", "description": "", "videoPrompt": ""}. Responda apenas o JSON.` }];
+        let parts = [{ text: `Atue como historiador. Título: "${title}". Gere um JSON para VHS: {"cleanTitle": "", "year": "", "distributor": "", "description": "", "videoPrompt": ""}. Responda apenas o JSON puro.` }];
 
         if (videoFile) {
-            aiStatus.innerHTML = "⏳ Processando imagem do vídeo...";
+            aiStatus.innerHTML = "⏳ Analisando visual do vídeo...";
             try {
                 const frame = await captureVideoFrame(videoFile);
                 parts.push({ inline_data: { mime_type: "image/jpeg", data: frame } });
-            } catch (vErr) { console.warn("Sem frame."); }
+            } catch (vErr) { console.warn("Prosseguindo sem imagem."); }
         }
 
-        // URL ATUALIZADA PARA V1 (MAIS ESTÁVEL)
+        // MUDANÇA CRUCIAL: v1beta -> v1
         const response = await fetch(`https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=${apiKey}`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -80,26 +81,26 @@ generateBtn.addEventListener('click', async () => {
         const resData = await response.json();
 
         if (resData.error) {
-            throw new Error(`Erro API: ${resData.error.message}`);
+            throw new Error(`Google diz: ${resData.error.message} (${resData.error.status})`);
         }
 
         let rawText = resData.candidates[0].content.parts[0].text;
         
-        // Limpa blocos de código markdown se existirem
+        // Limpeza de blocos de código markdown
         rawText = rawText.replace(/```json/g, "").replace(/```/g, "").trim();
         
         const jsonMatch = rawText.match(/\{.*\}/s);
-        if (!jsonMatch) throw new Error("A IA não retornou um JSON válido.");
+        if (!jsonMatch) throw new Error("A resposta da IA não contém um JSON válido.");
         
         metadataResult = JSON.parse(jsonMatch[0]);
         renderLabel(metadataResult);
         
-        aiStatus.innerHTML = `✅ <strong>Sucesso!</strong><br>Prompt Kling AI:<br><code style="background:#000; color:#ffcc00; display:block; padding:10px; margin-top:5px; border:1px solid #333;">${metadataResult.videoPrompt}</code>`;
+        aiStatus.innerHTML = `✅ <strong>Sucesso!</strong><br>Prompt para Kling AI:<br><code style="background:#000; color:#ffcc00; display:block; padding:10px; margin-top:5px; border:1px solid #333;">${metadataResult.videoPrompt}</code>`;
         downloadBtn.disabled = false;
 
     } catch (err) {
         aiStatus.innerHTML = `<div style="color:#ff5555">❌ ${err.message}</div>`;
-        console.error("Debug:", err);
+        console.error("Erro detalhado:", err);
     }
 });
 
@@ -116,5 +117,5 @@ downloadBtn.addEventListener('click', async () => {
     if (videoFile) folder.file(`${name}.mp4`, videoFile);
     
     const content = await zip.generateAsync({type:"blob"});
-    saveAs(content, `${name}_Pack.zip`);
+    saveAs(content, `${name}_Pack_EmuVR.zip`);
 });
