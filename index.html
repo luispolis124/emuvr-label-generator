@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>EmuVR Label Generator | Gemini AI</title>
+    <title>EmuVR Retro Pack Maker | Gemini + Kling AI</title>
     <link rel="stylesheet" href="style.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
@@ -13,7 +13,7 @@
     <div class="container">
         <header>
             <h1>📼 EmuVR Retro Pack Maker</h1>
-            <p>Transforme títulos em pacotes de VHS prontos para o EmuVR</p>
+            <p>Gere animações 2D Cel fictícias com Gemini & Kling AI</p>
         </header>
 
         <main>
@@ -28,43 +28,47 @@
 
             <section class="form-section">
                 <div class="input-group">
-                    <label for="movieTitle">Título do Filme / Gravação:</label>
-                    <input type="text" id="movieTitle" placeholder="Ex: Batman 1989 ou Gravação de Natal 92">
+                    <label for="movieTitle">Título da Animação:</label>
+                    <input type="text" id="movieTitle" placeholder="Ex: Robô Mecha 1994 ou Cyber Samurai">
                 </div>
 
                 <div class="input-group">
-                    <label for="vhsStyle">Tipo de Conteúdo:</label>
+                    <label for="vhsStyle">Tipo de Etiqueta:</label>
                     <select id="vhsStyle">
-                        <option value="blockbuster">Filme Famoso (Labels Oficiais)</option>
-                        <option value="homevideo">Gravação Caseira (Etiqueta Escrita à Mão)</option>
-                        <option value="tv">Gravado da TV (Comerciais inclusos)</option>
+                        <option value="blockbuster">Animação Oficial (Locadora)</option>
+                        <option value="homevideo">Fita Gravada (Escrito à Mão)</option>
+                        <option value="tv">Especial de TV (Antigo)</option>
                     </select>
                 </div>
 
                 <div class="input-group">
-                    <label for="videoFile">Selecione o arquivo de Vídeo (Opcional):</label>
+                    <label for="videoFile">Upload do Vídeo (Gerado no Kling/Sora):</label>
                     <input type="file" id="videoFile" accept="video/mp4,video/x-m4v,video/*">
-                    <small>A IA analisará um frame deste vídeo para gerar a descrição.</small>
+                    <small>Dica: Primeiro gere o prompt, depois use no Kling e suba o vídeo aqui.</small>
                 </div>
 
                 <video id="videoHelper" style="display:none;"></video>
 
-                <button id="generateBtn" class="btn-primary">✨ Consultar Gemini & Gerar Label</button>
+                <button id="generateBtn" class="btn-primary">✨ 1. Gerar Dados & Prompt de Vídeo</button>
             </section>
 
             <section class="preview-section">
-                <div class="canvas-container">
-                    <canvas id="vhsCanvas" width="800" height="350"></canvas>
-                    <p class="canvas-label">Preview da Etiqueta (Gerada via Canvas 2D)</p>
-                </div>
-                
                 <div id="aiStatus" class="ai-box">
                     <strong>Status:</strong> Aguardando comando...
                 </div>
 
-                <button id="downloadZipBtn" class="btn-secondary" disabled>📦 Baixar Pack para EmuVR (.zip)</button>
+                <div class="canvas-container">
+                    <canvas id="vhsCanvas" width="800" height="350"></canvas>
+                    <p class="canvas-label">Preview da Etiqueta VHS</p>
+                </div>
+                
+                <button id="downloadZipBtn" class="btn-secondary" disabled>📦 2. Baixar Pack Completo (.zip)</button>
             </section>
         </main>
+        
+        <footer>
+            <p><small>Use o prompt gerado no <a href="https://klingai.com/" target="_blank" style="color: var(--accent-color);">Kling AI</a> para criar sua animação 2D Cel.</small></p>
+        </footer>
     </div>
 
     <script type="module" src="script.js"></script>
