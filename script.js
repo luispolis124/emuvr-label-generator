@@ -7,14 +7,11 @@ const aiStatus = document.getElementById('aiStatus');
 
 let metadataResult = null;
 
-// Função para extrair frame do vídeo (Multimodalidade)
 async function captureVideoFrame(file) {
     return new Promise((resolve) => {
         const url = URL.createObjectURL(file);
         videoHelper.src = url;
-        videoHelper.onloadeddata = () => {
-            videoHelper.currentTime = 2; // Pega o frame aos 2 segundos
-        };
+        videoHelper.onloadeddata = () => { videoHelper.currentTime = 2; };
         videoHelper.onseeked = () => {
             const tempCanvas = document.createElement('canvas');
             tempCanvas.width = videoHelper.videoWidth;
@@ -27,34 +24,26 @@ async function captureVideoFrame(file) {
     });
 }
 
-// Desenha a Label no Canvas baseada na resposta da IA
 function renderLabel(data) {
     const style = document.getElementById('vhsStyle').value;
-    
-    // Fundo
     ctx.fillStyle = "#ffffff";
     ctx.fillRect(0, 0, canvas.width, canvas.height);
-    
-    // Bordas e Design
     ctx.strokeStyle = "#000";
     ctx.lineWidth = 5;
     ctx.strokeRect(10, 10, canvas.width - 20, canvas.height - 20);
 
-    // Título principal
     ctx.fillStyle = "#000";
-    ctx.font = style === 'homevideo' ? "italic bold 45px 'Comic Sans MS'" : "bold 50px Arial";
+    ctx.font = style === 'homevideo' ? "italic bold 40px 'Comic Sans MS'" : "bold 45px Arial";
     ctx.fillText(data.cleanTitle.toUpperCase(), 40, 80);
 
-    // Informações Técnicas
-    ctx.font = "20px monospace";
-    ctx.fillText(`ANO: ${data.year}`, 40, 130);
-    ctx.fillText(`DISTRIB: ${data.distributor}`, 40, 160);
-    ctx.fillText(`REF: ${Math.random().toString(36).substring(7).toUpperCase()}`, 40, 190);
-
-    // "Ruído" Visual
-    for(let i=0; i<100; i++) {
-        ctx.fillStyle = `rgba(0,0,0,${Math.random() * 0.1})`;
-        ctx.fillRect(Math.random()*canvas.width, Math.random()*canvas.height, 2, 2);
+    ctx.font = "18px monospace";
+    ctx.fillText(`ANO: ${data.year} | ESTÚDIO: ${data.distributor}`, 40, 130);
+    ctx.fillText(`ESTILO: Animação 2D Cel (Original Print)`, 40, 160);
+    
+    // Simular desgaste de fita velha
+    for(let i=0; i<80; i++) {
+        ctx.fillStyle = `rgba(0,0,0,${Math.random() * 0.15})`;
+        ctx.fillRect(Math.random()*canvas.width, Math.random()*canvas.height, 2, 1);
     }
 }
 
@@ -65,16 +54,19 @@ generateBtn.addEventListener('click', async () => {
 
     if (!apiKey) return alert("Por favor, insira sua API Key!");
 
-    aiStatus.innerText = "⏳ Gemini está analisando sua fita...";
+    aiStatus.innerText = "⏳ Gemini está criando sua animação fictícia...";
     
     try {
-        let parts = [{ text: `Analise este título: "${title}". Gere um JSON com os campos: cleanTitle, year, distributor, description. Retorne apenas o JSON.` }];
+        // PROMPT ATUALIZADO PARA FOCO EM ANIMAÇÃO 2D CEL
+        let promptBase = `Atue como um historiador de animações perdidas. O título é "${title}". 
+        Crie metadados fictícios de um desenho animado estilo "2D Cel Animation" dos anos 80/90. 
+        Retorne APENAS um JSON: {"cleanTitle": "Nome", "year": "198x", "distributor": "Nome do Estúdio", "description": "Sinopse nostálgica"}`;
+
+        let parts = [{ text: promptBase }];
 
         if (videoFile) {
             const frameBase64 = await captureVideoFrame(videoFile);
-            parts.push({
-                inline_data: { mime_type: "image/jpeg", data: frameBase64 }
-            });
+            parts.push({ inline_data: { mime_type: "image/jpeg", data: frameBase64 } });
         }
 
         const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`, {
@@ -88,11 +80,11 @@ generateBtn.addEventListener('click', async () => {
         metadataResult = JSON.parse(rawText.match(/\{.*\}/s)[0]);
 
         renderLabel(metadataResult);
-        aiStatus.innerText = "✅ Label e metadados gerados!";
+        aiStatus.innerText = "✅ Pack de Animação Criado!";
         downloadBtn.disabled = false;
 
     } catch (err) {
-        aiStatus.innerText = "❌ Erro ao consultar Gemini.";
+        aiStatus.innerText = "❌ Erro. Verifique sua chave ou conexão.";
         console.error(err);
     }
 });
@@ -102,24 +94,19 @@ downloadBtn.addEventListener('click', async () => {
     const folderName = metadataResult.cleanTitle.replace(/\s+/g, '_');
     const folder = zip.folder(folderName);
 
-    // Arte do VHS
     const labelData = canvas.toDataURL('image/png').split(',')[1];
     folder.file("label.png", labelData, {base64: true});
 
-    // EmuVR info.json
-    const emuJson = {
+    folder.file("info.json", JSON.stringify({
         Title: metadataResult.cleanTitle,
         Year: metadataResult.year,
-        Description: metadataResult.description
-    };
-    folder.file("info.json", JSON.stringify(emuJson, null, 2));
+        Description: metadataResult.description + " [Estilo: Animação 2D Cel Tradicional]",
+        Media: "VHS"
+    }, null, 2));
 
-    // Incluir Vídeo se existir
     const videoFile = document.getElementById('videoFile').files[0];
-    if (videoFile) {
-        folder.file(`${folderName}.mp4`, videoFile);
-    }
+    if (videoFile) { folder.file(`${folderName}.mp4`, videoFile); }
 
     const content = await zip.generateAsync({type:"blob"});
-    saveAs(content, `${folderName}_EmuVR.zip`);
+    saveAs(content, `${folderName}_VHS_Animação.zip`);
 });
